@@ -1,0 +1,23 @@
+# Large binaries
+*.pt
+*.onnx
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Datasets and runs
+YOLOv8-Fire-and-Smoke-Detection/
+runs/
+datasets/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
