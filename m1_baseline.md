@@ -22,3 +22,12 @@
 | Min    | 39.12 |
 | Max    | 97.02 |
 | P95    | 60.75 |
+## Latency Comparison (FP32, laptop CPU)
+
+| Runtime | Mean (ms) | Median (ms) | P95 (ms) |
+|---------|-----------|-------------|----------|
+| PyTorch (Ultralytics) | 45.77 | 42.75 | 60.75 |
+| ONNX Runtime          | 47.74 | 42.80 | 80.43 |
+
+Note: PyTorch and ONNX Runtime perform similarly on this CPU . The C++ engine will
+target ONNX Runtime as the production reference point.
