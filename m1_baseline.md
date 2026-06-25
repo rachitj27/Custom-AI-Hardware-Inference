@@ -20,13 +20,16 @@
 | Precision    | 0.9376 |
 | Recall       | 0.8466 |
 
-## Latency Comparison (FP32, laptop CPU)
+## Latency Comparison
 
-| Runtime | Mean (ms) | Median (ms) | P95 (ms) | Speedup vs PyTorch |
-|---------|-----------|-------------|----------|--------------------|
-| PyTorch (Ultralytics) | 45.77 | 42.75 | 60.75 | 1.00x |
-| ONNX Runtime          | 40.10 | 38.98 | 51.90 | 1.14x |
-| OpenVINO              | 30.57 | 29.93 | 35.04 | 1.50x |
+| Runtime | Hardware | Precision | Mean (ms) | Median (ms) | P95 (ms) |
+|---------|----------|-----------|-----------|-------------|----------|
+| PyTorch (Ultralytics) | Intel Core Ultra 7 256V | FP32 | 45.77 | 42.75 | 60.75 |
+| ONNX Runtime | Intel Core Ultra 7 256V | FP32 | 40.10 | 38.98 | 51.90 |
+| OpenVINO | Intel Core Ultra 7 256V | FP32 | 30.57 | 29.93 | 35.04 |
+| TensorRT | NVIDIA T4 (Colab) | FP16 | 12.39 | 12.05 | 13.94 |
+
+
 
 ## Observations
 - OpenVINO is the fastest FP32 runtime on this Intel CPU, with the lowest variance (P95 only 5ms above median).
@@ -36,3 +39,5 @@
 ## Notes
 - All latency numbers measured with 5 warm-up runs followed by 55 timed runs on the test set.
 - PyTorch latency includes preprocessing and postprocessing (NMS). ONNX Runtime and OpenVINO numbers are inference only.
+- Note: TensorRT measured on Google Colab T4 in default FP16 mode, the standard
+production configuration for NVIDIA inference. CPU runtimes measured at FP32.
