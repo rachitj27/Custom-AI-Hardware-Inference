@@ -30,3 +30,15 @@ def quantize(tensor, scale, zero_point, num_bits=8):
 def dequantize(q_tensor, scale, zero_point):
     return (scale * (q_tensor.astype(np.float32) - zero_point)).astype(np.float32)
 
+def quantized_matmul(A_int, B_int, s_A, z_A, s_B, z_B, s_C, z_C, num_bits=8):
+    A_shifted = (A_int.astype(np.int32) - z_A)
+    B_shifted = (B_int.astype(np.int32) - z_B)
+    acc = A_shifted @ B_shifted  # matrix multiplication
+    M = s_A * s_B / s_C
+    scaled = M * acc.astype(np.float32)
+    qmin = -(2 ** (num_bits - 1))
+    qmax = (2 ** (num_bits - 1)) - 1
+    result = np.round(scaled + z_C)
+    result = np.clip(result, qmin, qmax).astype(np.int8)
+    return result
+
