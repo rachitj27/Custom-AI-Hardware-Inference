@@ -4,12 +4,12 @@ import json
 from ultralytics import YOLO
 from quantization import compute_scale_zeropoint, quantize, dequantize
 
-# Load the model
+
 model = YOLO("best.pt")
 pytorch_model = model.model
 pytorch_model.eval()
 
-# === Step 5a: Fake-quantize all conv weights ===
+# Fake-quantize all conv weights
 conv_count = 0
 for name, module in pytorch_model.named_modules():
     if isinstance(module, torch.nn.Conv2d):
@@ -22,7 +22,7 @@ for name, module in pytorch_model.named_modules():
 
 print(f"Fake-quantized weights of {conv_count} conv layers")
 
-# === Step 5b: Load activation scales and attach fake-quantization hooks ===
+# Load activation scales and attach fake-quantization hooks
 with open("activation_scales.json") as f:
     activation_scales_raw = json.load(f)
 activation_scales = {int(k): v for k, v in activation_scales_raw.items()}
@@ -63,7 +63,7 @@ for i, layer in enumerate(pytorch_model.model):
 
 print(f"Attached fake-quantization hooks to {len(activation_hooks)} layers")
 
-# === Step 5c: Run validation ===
+#  Run validation 
 metrics = model.val(
     data="YOLOv8-Fire-and-Smoke-Detection/datasets/fire-8/data.yaml",
     split="test",
@@ -75,6 +75,6 @@ print(f"\n=== Full fake-quantization (INT8 weights + activations) ===")
 print(f"mAP@0.5:      {metrics.box.map50:.4f}")
 print(f"mAP@0.5:0.95: {metrics.box.map:.4f}")
 
-# Cleanup
+
 for h in activation_hooks:
     h.remove()
