@@ -41,3 +41,23 @@
 - PyTorch latency includes preprocessing and postprocessing (NMS). ONNX Runtime and OpenVINO numbers are inference only.
 - Note: TensorRT measured on Google Colab T4 in default FP16 mode, the standard
 production configuration for NVIDIA inference. CPU runtimes measured at FP32.
+
+# M2 Quantization Results
+
+## Test Set: fire-8, 49 images, 51 instances
+
+| Configuration | mAP@0.5 | mAP@0.5:0.95 |
+|--------------|---------|--------------|
+| FP32 baseline | 0.9253 | 0.5469 |
+| INT8 weights (symmetric per-tensor) | 0.8467 | 0.4640 |
+| INT8 weights + activations (asymmetric per-tensor) | 0.8445 | 0.4604 |
+
+## Precision loss breakdown
+- Weight quantization causes ~8.5% mAP@0.5 drop
+- Adding activation quantization causes only 0.2% additional drop
+- Total: 91% of FP32 mAP@0.5 preserved with fully from-scratch INT8 quantization
+
+## Notes
+- Per-tensor symmetric weights (could improve with per-channel)
+- Per-tensor asymmetric activations calibrated on 100 training images
+- Skipped output quantization on Detect, Concat, Upsample layers (non-standard tensor outputs)
