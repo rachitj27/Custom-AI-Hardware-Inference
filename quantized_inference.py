@@ -9,38 +9,20 @@ model = YOLO("best.pt")
 pytorch_model = model.model
 pytorch_model.eval()
 
-# Find all conv layers and replace their weights 
+# === Step 5a: Fake-quantize all conv weights ===
 conv_count = 0
 for name, module in pytorch_model.named_modules():
     if isinstance(module, torch.nn.Conv2d):
-        
         w_fp32 = module.weight.detach().cpu().numpy()
-        
-        # Quantize 
         s, z = compute_scale_zeropoint(w_fp32, symmetric=True)
         w_int8 = quantize(w_fp32, s, z)
         w_recovered = dequantize(w_int8, s, z)
-        
-        # Replace the weight with the quantized-then-dequantized version
         module.weight.data = torch.from_numpy(w_recovered).float()
-        
         conv_count += 1
 
 print(f"Fake-quantized weights of {conv_count} conv layers")
 
-# Run validation with weights-only fake quantization
-metrics = model.val(
-    data="YOLOv8-Fire-and-Smoke-Detection/datasets/fire-8/data.yaml",
-    split="test",
-    imgsz=640,
-    verbose=False,
-)
-
-print(f"\n=== Weights-only fake-quantization (INT8, symmetric per-tensor) ===")
-print(f"mAP@0.5:      {metrics.box.map50:.4f}")
-print(f"mAP@0.5:0.95: {metrics.box.map:.4f}")
-
-# Load calibrated activation scales
+# === Step 5b: Load activation scales and attach fake-quantization hooks ===
 with open("activation_scales.json") as f:
     activation_scales_raw = json.load(f)
 activation_scales = {int(k): v for k, v in activation_scales_raw.items()}
@@ -52,10 +34,16 @@ def fake_quantize_tensor(x, scale, zero_point, num_bits=8):
     q = torch.clamp(q, qmin, qmax)
     return scale * (q - zero_point)
 
-# Attach hooks that fake-quantize each top-level layer's output
+SKIP_TYPES = ("Detect", "Concat", "Upsample")
+
 activation_hooks = []
 for i, layer in enumerate(pytorch_model.model):
     if i not in activation_scales:
+        continue
+    
+    layer_type = type(layer).__name__
+    if layer_type in SKIP_TYPES:
+        print(f"Skipping layer {i} ({layer_type})")
         continue
     
     scale = activation_scales[i]["scale"]
@@ -75,7 +63,7 @@ for i, layer in enumerate(pytorch_model.model):
 
 print(f"Attached fake-quantization hooks to {len(activation_hooks)} layers")
 
-# Run validation again with both weights AND activations quantized
+# === Step 5c: Run validation ===
 metrics = model.val(
     data="YOLOv8-Fire-and-Smoke-Detection/datasets/fire-8/data.yaml",
     split="test",
@@ -87,6 +75,6 @@ print(f"\n=== Full fake-quantization (INT8 weights + activations) ===")
 print(f"mAP@0.5:      {metrics.box.map50:.4f}")
 print(f"mAP@0.5:0.95: {metrics.box.map:.4f}")
 
-# Clean up
+# Cleanup
 for h in activation_hooks:
     h.remove()
