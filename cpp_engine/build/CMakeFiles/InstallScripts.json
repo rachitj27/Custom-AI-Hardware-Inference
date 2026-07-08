@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/rachit/projects/Custom-AI-Hardware-Inference/cpp_engine/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

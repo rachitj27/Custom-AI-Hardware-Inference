@@ -1,3 +1,0 @@
-/home/rachit/projects/Custom-AI-Hardware-Inference/cpp_engine/build/CMakeFiles/custom_engine.dir
-/home/rachit/projects/Custom-AI-Hardware-Inference/cpp_engine/build/CMakeFiles/edit_cache.dir
-/home/rachit/projects/Custom-AI-Hardware-Inference/cpp_engine/build/CMakeFiles/rebuild_cache.dir
