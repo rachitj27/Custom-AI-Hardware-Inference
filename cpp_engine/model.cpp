@@ -18,7 +18,7 @@ Model load_model_metadata(const std::string& json_path) {
     Model model;
     model.num_bits = metadata["num_bits"];
     
-    // Parse each conv layer
+    // Parse each convulution layer
     for (const auto& layer_json : metadata["conv_layers"]) {
         Layer layer;
         layer.layer_id = layer_json["layer_id"];
