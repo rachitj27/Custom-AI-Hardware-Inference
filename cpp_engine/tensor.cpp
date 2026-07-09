@@ -1,5 +1,6 @@
 #include "tensor.h"
 #include <iostream>
+#include <stdexcept>
 
 // Constructor
 Tensor::Tensor(const std::vector<int>& shape_in) {
@@ -41,4 +42,13 @@ void Tensor::print_info() const {
 // Get value at flat index
 int8_t Tensor::at(size_t index) const {
     return data[index];
+}
+void Tensor::load_from_stream(std::ifstream& file, size_t byte_length) {
+    if (byte_length != num_elements) {
+        throw std::runtime_error("Byte length does not match tensor size");
+    }
+    file.read(reinterpret_cast<char*>(data), byte_length);
+    if (!file) {
+        throw std::runtime_error("Failed to read from file");
+    }
 }

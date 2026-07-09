@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cstdint>
+#include <fstream>
 
 class Tensor {
 public:
@@ -21,6 +22,8 @@ public:
     
     
     int8_t at(size_t index) const;
+
+    void load_from_stream(std::ifstream& file, size_t byte_length);
 };
 
 #endif

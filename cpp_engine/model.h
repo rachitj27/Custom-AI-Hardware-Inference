@@ -5,6 +5,8 @@
 #include <vector>
 #include <cstdint>
 #include <map>
+#include <memory>
+#include "tensor.h"
 
 struct Layer {
     int layer_id;
@@ -15,6 +17,7 @@ struct Layer {
     float weight_scale;
     int weight_zero_point;
     std::string quantization_scheme;
+    std::unique_ptr<Tensor> weights;
 };
 
 struct ActivationScale {
@@ -30,5 +33,6 @@ struct Model {
 
 // Load model metadata from a JSON file
 Model load_model_metadata(const std::string& json_path);
+void load_model_weights(Model& model, const std::string& bin_path);
 
 #endif

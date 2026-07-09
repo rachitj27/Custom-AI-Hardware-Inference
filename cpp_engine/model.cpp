@@ -1,6 +1,7 @@
 #include "model.h"
 #include <fstream>
 #include <iostream>
+#include <utility>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -30,7 +31,7 @@ Model load_model_metadata(const std::string& json_path) {
         layer.weight_zero_point = layer_json["weight_zero_point"];
         layer.quantization_scheme = layer_json["quantization_scheme"];
         
-        model.conv_layers.push_back(layer);
+        model.conv_layers.push_back(std::move(layer));
     }
     
     // Parse activation scales
@@ -43,4 +44,24 @@ Model load_model_metadata(const std::string& json_path) {
     }
     
     return model;
+}
+
+void load_model_weights(Model& model, const std::string& bin_path) {
+    std::ifstream file(bin_path, std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Could not open " + bin_path);
+    }
+    
+    for (auto& layer : model.conv_layers) {
+        // Create the tensor with the layer's shape
+        layer.weights = std::make_unique<Tensor>(layer.weight_shape);
+        
+        
+        file.seekg(layer.byte_offset);
+        
+        // Read the bytes into the tensor
+        layer.weights->load_from_stream(file, layer.byte_length);
+    }
+    
+    std::cout << "Loaded weights for " << model.conv_layers.size() << " conv layers" << std::endl;
 }
