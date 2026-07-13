@@ -51,7 +51,7 @@ std::unique_ptr<Tensor> conv2d(
                     }
                 }
 
-                // Store the accumulator (clamped to INT8 range for now)
+                // Store the accumulator 
                 if (acc > 127) acc = 127;
                 if (acc < -128) acc = -128;
 
