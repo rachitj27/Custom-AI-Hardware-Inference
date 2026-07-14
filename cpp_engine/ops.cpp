@@ -1,11 +1,16 @@
 #include "ops.h"
 #include <stdexcept>
+#include <cmath>
 
 std::unique_ptr<Tensor> conv2d(
     const Tensor& input,
     const Tensor& weights,
     int stride,
-    int padding
+    int padding,
+    float input_scale,
+    float weight_scale,
+    float output_scale,
+    int output_zero_point
 ) {
     int in_channels  = input.shape[0];
     int in_height    = input.shape[1];
@@ -51,12 +56,17 @@ std::unique_ptr<Tensor> conv2d(
                     }
                 }
 
-                // Store the accumulator 
-                if (acc > 127) acc = 127;
-                if (acc < -128) acc = -128;
+            // Compute the combined scale factor
+            float M = input_scale * weight_scale / output_scale;
+            // Requantization math with no scale factor
+            int32_t requantized = (int32_t)std::round(M * acc) + output_zero_point;
 
-                int output_idx = oc * (out_height * out_width) + oh * out_width + ow;
-                output->data[output_idx] = (int8_t)acc;
+            // Clamp to INT8 range just in case of floating point rounding mistakes or calibration values out of range of what quantizatio was done with
+            if (requantized > 127) requantized = 127;
+            if (requantized < -128) requantized = -128;
+
+            int output_idx = oc * (out_height * out_width) + oh * out_width + ow;
+            output->data[output_idx] = (int8_t)requantized;
             }
         }
     }

@@ -13,7 +13,11 @@ std::unique_ptr<Tensor> conv2d(
     const Tensor& input,
     const Tensor& weights,
     int stride,
-    int padding
+    int padding,
+    float input_scale,
+    float weight_scale,
+    float output_scale,
+    int output_zero_point
 );
 
 #endif

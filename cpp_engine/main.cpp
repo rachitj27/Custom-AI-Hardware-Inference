@@ -21,7 +21,22 @@ int main() {
     // Run conv2d for layer 0
     // Layer 0: stride=2, padding=1
     std::cout << "\nRunning conv2d on layer 0..." << std::endl;
-    auto output = conv2d(input, *model.conv_layers[0].weights, 2, 1);
+    // Get scales for layer 0
+const Layer& layer0 = model.conv_layers[0];
+float input_scale = 1.0f / 255.0f;  // input image scale (RGB pixels normalized)
+int input_zero_point = 0;
+float output_scale = model.activation_scales[0].scale;
+int output_zero_point = model.activation_scales[0].zero_point;
+
+auto output = conv2d(
+    input,
+    *layer0.weights,
+    2, 1,
+    input_scale,
+    layer0.weight_scale,
+    output_scale,
+    output_zero_point
+);
     
     std::cout << "conv2d complete" << std::endl;
     output->print_info();
