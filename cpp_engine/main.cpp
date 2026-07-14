@@ -1,19 +1,30 @@
 #include <iostream>
 #include "model.h"
+#include "ops.h"
 
 int main() {
     std::cout << "Custom AI Inference Engine" << std::endl;
     
-    // Load metadata
+    // Load model
     Model model = load_model_metadata("../../quantization/model_int8.json");
-    std::cout << "Loaded metadata for " << model.conv_layers.size() << " conv layers" << std::endl;
-    
-    // Load actual weight bytes
     load_model_weights(model, "../../quantization/model_int8.bin");
+    std::cout << "Model loaded" << std::endl;
     
-    // Verify by printing layer 0's tensor info
-    std::cout << "\nLayer 0 weights:" << std::endl;
-    model.conv_layers[0].weights->print_info();
+    // Create a dummy input tensor of shape (3, 640, 640)
+    // Fill with a simple pattern so we can verify the math
+    Tensor input({3, 640, 640});
+    for (size_t i = 0; i < input.num_elements; i++) {
+        input.data[i] = (int8_t)(i % 128);  // repeating 0-127 pattern
+    }
+    std::cout << "Input tensor created: (3, 640, 640)" << std::endl;
+    
+    // Run conv2d for layer 0
+    // Layer 0: stride=2, padding=1
+    std::cout << "\nRunning conv2d on layer 0..." << std::endl;
+    auto output = conv2d(input, *model.conv_layers[0].weights, 2, 1);
+    
+    std::cout << "conv2d complete" << std::endl;
+    output->print_info();
     
     return 0;
 }

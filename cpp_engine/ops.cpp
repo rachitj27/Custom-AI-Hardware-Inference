@@ -24,7 +24,7 @@ std::unique_ptr<Tensor> conv2d(
     int out_width  = (in_width  + 2 * padding - kernel_w) / stride + 1;
 
     auto output = std::make_unique<Tensor>(std::vector<int>{out_channels, out_height, out_width});
-
+    //main 6 nested for loops to do the convolution
     for (int oc = 0; oc < out_channels; oc++) {
         for (int oh = 0; oh < out_height; oh++) {
             for (int ow = 0; ow < out_width; ow++) {
