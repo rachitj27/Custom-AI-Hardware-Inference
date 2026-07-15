@@ -78,3 +78,5 @@ print(f"mAP@0.5:0.95: {metrics.box.map:.4f}")
 
 for h in activation_hooks:
     h.remove()
+
+
