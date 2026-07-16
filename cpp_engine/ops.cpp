@@ -1,6 +1,7 @@
 #include "ops.h"
 #include <stdexcept>
 #include <cmath>
+#include <cstring>
 
 std::unique_ptr<Tensor> conv2d(
     const Tensor& input,
@@ -71,5 +72,102 @@ std::unique_ptr<Tensor> conv2d(
         }
     }
 
+    return output;
+}
+void silu_inplace(
+    Tensor& tensor,
+    float input_scale,
+    int input_zero_point,
+    float output_scale,
+    int output_zero_point
+) {
+    
+    // For each of the 256 possible input values, compute the SiLU result
+    int8_t lookup[256];
+    for (int i = -128; i <= 127; i++) {
+        // Dequantize input value to FP32
+        float x_fp32 = input_scale * (i - input_zero_point);
+        
+        // Apply SiLU: x * sigmoid(x)
+        float sigmoid = 1.0f / (1.0f + std::exp(-x_fp32));
+        float silu = x_fp32 * sigmoid;
+        
+        // Requantize to INT8
+        int32_t q = (int32_t)std::round(silu / output_scale) + output_zero_point;
+        if (q > 127) q = 127;
+        if (q < -128) q = -128;
+        
+        lookup[i + 128] = (int8_t)q;
+    }
+    
+    // Apply lookup to every element in the tensor
+    for (size_t i = 0; i < tensor.num_elements; i++) {
+        int idx = tensor.data[i] + 128;  // shift to 0-255 range
+        tensor.data[i] = lookup[idx];
+    }
+}
+std::unique_ptr<Tensor> upsample2x(const Tensor& input) {
+    // Input shape: (channels, height, width)
+    // Output shape: (channels, height * 2, width * 2)
+    int channels = input.shape[0];
+    int in_h = input.shape[1];
+    int in_w = input.shape[2];
+    int out_h = in_h * 2;
+    int out_w = in_w * 2;
+    
+    auto output = std::make_unique<Tensor>(std::vector<int>{channels, out_h, out_w});
+    
+    for (int c = 0; c < channels; c++) {
+        for (int oh = 0; oh < out_h; oh++) {
+            for (int ow = 0; ow < out_w; ow++) {
+                // Nearest neighbor: divide by 2 to get input position
+                int ih = oh / 2;
+                int iw = ow / 2;
+                
+                int in_idx  = c * (in_h * in_w)  + ih * in_w + iw;
+                int out_idx = c * (out_h * out_w) + oh * out_w + ow;
+                
+                output->data[out_idx] = input.data[in_idx];
+            }
+        }
+    }
+    
+    return output;
+}
+
+std::unique_ptr<Tensor> concat(const std::vector<const Tensor*>& tensors) {
+    // All tensors must have same height and width, we concat along channel dim
+    if (tensors.empty()) {
+        throw std::runtime_error("Concat needs at least one tensor");
+    }
+    
+    // Verify all tensors have the same spatial shape
+    int height = tensors[0]->shape[1];
+    int width  = tensors[0]->shape[2];
+    int total_channels = 0;
+    for (const Tensor* t : tensors) {
+        if (t->shape[1] != height || t->shape[2] != width) {
+            throw std::runtime_error("Concat tensors must have matching spatial dims");
+        }
+        total_channels += t->shape[0];
+    }
+    
+    auto output = std::make_unique<Tensor>(std::vector<int>{total_channels, height, width});
+    
+    // Copy each input tensor's data into the output at the right channel offset
+    int channel_offset = 0;
+    for (const Tensor* t : tensors) {
+        int t_channels = t->shape[0];
+        size_t bytes_per_channel = height * width;  // INT8 = 1 byte per element
+        
+        for (int c = 0; c < t_channels; c++) {
+            const int8_t* src = t->data + c * bytes_per_channel;
+            int8_t* dst = output->data + (channel_offset + c) * bytes_per_channel;
+            std::memcpy(dst, src, bytes_per_channel);
+        }
+        
+        channel_offset += t_channels;
+    }
+    
     return output;
 }
