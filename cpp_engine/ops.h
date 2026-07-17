@@ -29,5 +29,6 @@ void silu_inplace(
 );
 std::unique_ptr<Tensor> upsample2x(const Tensor& input);
 std::unique_ptr<Tensor> concat(const std::vector<const Tensor*>& tensors);
+std::unique_ptr<Tensor> maxpool2d(const Tensor& input, int kernel_size);
 
 #endif
