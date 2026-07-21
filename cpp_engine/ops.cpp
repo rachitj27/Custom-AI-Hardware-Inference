@@ -1,4 +1,5 @@
 #include "ops.h"
+#include "model.h"
 #include <stdexcept>
 #include <cmath>
 #include <cstring>
@@ -211,4 +212,105 @@ std::unique_ptr<Tensor> maxpool2d(const Tensor& input, int kernel_size) {
     }
     
     return output;
+}
+std::unique_ptr<Tensor> bottleneck(
+    const Tensor& input,
+    const Layer& conv1, float input_scale, int input_zp, float mid_scale, int mid_zp,
+    const Layer& conv2, float out_scale, int out_zp,
+    bool shortcut
+) {
+    auto x = conv2d(input, *conv1.weights, 1, 1,
+                    input_scale, conv1.weight_scale, mid_scale, mid_zp);
+    silu_inplace(*x, mid_scale, mid_zp, mid_scale, mid_zp);
+    
+    auto y = conv2d(*x, *conv2.weights, 1, 1,
+                    mid_scale, conv2.weight_scale, out_scale, out_zp);
+    silu_inplace(*y, out_scale, out_zp, out_scale, out_zp);
+    
+    if (shortcut) {
+        for (size_t i = 0; i < y->num_elements; i++) {
+            int32_t sum = (int32_t)y->data[i] + (int32_t)input.data[i];
+            if (sum > 127) sum = 127;
+            if (sum < -128) sum = -128;
+            y->data[i] = (int8_t)sum;
+        }
+    }
+    return y;
+}
+std::unique_ptr<Tensor> c2f_block(
+    const Tensor& input,
+    const std::vector<const Layer*>& convs,
+    const std::vector<float>& scales,
+    const std::vector<int>& zero_points,
+    int n_bottlenecks,
+    bool shortcut
+) {
+    float in_s = scales[0];
+    int in_z = zero_points[0];
+    float out_s = scales[1];
+    int out_z = zero_points[1];
+    
+    auto x = conv2d(input, *convs[0]->weights, 1, 0,
+                    in_s, convs[0]->weight_scale, out_s, out_z);
+    silu_inplace(*x, out_s, out_z, out_s, out_z);
+    
+    int channels = x->shape[0];
+    int half_channels = channels / 2;
+    int height = x->shape[1];
+    int width = x->shape[2];
+    
+    Tensor a({half_channels, height, width});
+    Tensor b({half_channels, height, width});
+    size_t half_bytes = half_channels * height * width;
+    std::memcpy(a.data, x->data, half_bytes);
+    std::memcpy(b.data, x->data + half_bytes, half_bytes);
+    
+    std::vector<std::unique_ptr<Tensor>> owned_tensors;
+    std::vector<const Tensor*> concat_inputs;
+    concat_inputs.push_back(&a);
+    concat_inputs.push_back(&b);
+    
+    const Tensor* current = &b;
+    for (int i = 0; i < n_bottlenecks; i++) {
+        int c1_idx = 1 + i * 2;
+        int c2_idx = 2 + i * 2;
+        auto next = bottleneck(*current,
+                               *convs[c1_idx], out_s, out_z, out_s, out_z,
+                               *convs[c2_idx], out_s, out_z,
+                               shortcut);
+        current = next.get();
+        concat_inputs.push_back(current);
+        owned_tensors.push_back(std::move(next));
+    }
+    
+    auto concat_out = concat(concat_inputs);
+    
+    int last_conv_idx = convs.size() - 1;
+    auto result = conv2d(*concat_out, *convs[last_conv_idx]->weights, 1, 0,
+                         out_s, convs[last_conv_idx]->weight_scale, out_s, out_z);
+    silu_inplace(*result, out_s, out_z, out_s, out_z);
+    return result;
+}
+
+std::unique_ptr<Tensor> sppf_block(
+    const Tensor& input,
+    const Layer& cv1, float input_scale, int input_zp, float mid_scale, int mid_zp,
+    const Layer& cv2, float out_scale, int out_zp,
+    int kernel_size
+) {
+    auto x = conv2d(input, *cv1.weights, 1, 0,
+                    input_scale, cv1.weight_scale, mid_scale, mid_zp);
+    silu_inplace(*x, mid_scale, mid_zp, mid_scale, mid_zp);
+    
+    auto y1 = maxpool2d(*x, kernel_size);
+    auto y2 = maxpool2d(*y1, kernel_size);
+    auto y3 = maxpool2d(*y2, kernel_size);
+    
+    std::vector<const Tensor*> to_concat = {x.get(), y1.get(), y2.get(), y3.get()};
+    auto merged = concat(to_concat);
+    
+    auto result = conv2d(*merged, *cv2.weights, 1, 0,
+                         mid_scale, cv2.weight_scale, out_scale, out_zp);
+    silu_inplace(*result, out_scale, out_zp, out_scale, out_zp);
+    return result;
 }
