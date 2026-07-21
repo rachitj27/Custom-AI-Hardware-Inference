@@ -1101,5 +1101,259 @@
       "min": 2.1986265585915987e-10,
       "max": 645.7069091796875
     }
-  }
+  },
+  "architecture": [
+    {
+      "layer_id": 0,
+      "type": "Conv",
+      "conv_ids": [
+        0
+      ],
+      "input_from": "input"
+    },
+    {
+      "layer_id": 1,
+      "type": "Conv",
+      "conv_ids": [
+        1
+      ],
+      "input_from": 0
+    },
+    {
+      "layer_id": 2,
+      "type": "C2f",
+      "conv_ids": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "input_from": 1,
+      "n": 1,
+      "shortcut": true
+    },
+    {
+      "layer_id": 3,
+      "type": "Conv",
+      "conv_ids": [
+        6
+      ],
+      "input_from": 2
+    },
+    {
+      "layer_id": 4,
+      "type": "C2f",
+      "conv_ids": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "input_from": 3,
+      "n": 2,
+      "shortcut": true
+    },
+    {
+      "layer_id": 5,
+      "type": "Conv",
+      "conv_ids": [
+        13
+      ],
+      "input_from": 4
+    },
+    {
+      "layer_id": 6,
+      "type": "C2f",
+      "conv_ids": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "input_from": 5,
+      "n": 2,
+      "shortcut": true
+    },
+    {
+      "layer_id": 7,
+      "type": "Conv",
+      "conv_ids": [
+        20
+      ],
+      "input_from": 6
+    },
+    {
+      "layer_id": 8,
+      "type": "C2f",
+      "conv_ids": [
+        21,
+        22,
+        23,
+        24
+      ],
+      "input_from": 7,
+      "n": 1,
+      "shortcut": true
+    },
+    {
+      "layer_id": 9,
+      "type": "SPPF",
+      "conv_ids": [
+        25,
+        26
+      ],
+      "input_from": 8,
+      "k": 5
+    },
+    {
+      "layer_id": 10,
+      "type": "Upsample",
+      "conv_ids": [],
+      "input_from": 9
+    },
+    {
+      "layer_id": 11,
+      "type": "Concat",
+      "conv_ids": [],
+      "input_from": [
+        10,
+        6
+      ]
+    },
+    {
+      "layer_id": 12,
+      "type": "C2f",
+      "conv_ids": [
+        27,
+        28,
+        29,
+        30
+      ],
+      "input_from": 11,
+      "n": 1,
+      "shortcut": false
+    },
+    {
+      "layer_id": 13,
+      "type": "Upsample",
+      "conv_ids": [],
+      "input_from": 12
+    },
+    {
+      "layer_id": 14,
+      "type": "Concat",
+      "conv_ids": [],
+      "input_from": [
+        13,
+        4
+      ]
+    },
+    {
+      "layer_id": 15,
+      "type": "C2f",
+      "conv_ids": [
+        31,
+        32,
+        33,
+        34
+      ],
+      "input_from": 14,
+      "n": 1,
+      "shortcut": false
+    },
+    {
+      "layer_id": 16,
+      "type": "Conv",
+      "conv_ids": [
+        35
+      ],
+      "input_from": 15
+    },
+    {
+      "layer_id": 17,
+      "type": "Concat",
+      "conv_ids": [],
+      "input_from": [
+        16,
+        12
+      ]
+    },
+    {
+      "layer_id": 18,
+      "type": "C2f",
+      "conv_ids": [
+        36,
+        37,
+        38,
+        39
+      ],
+      "input_from": 17,
+      "n": 1,
+      "shortcut": false
+    },
+    {
+      "layer_id": 19,
+      "type": "Conv",
+      "conv_ids": [
+        40
+      ],
+      "input_from": 18
+    },
+    {
+      "layer_id": 20,
+      "type": "Concat",
+      "conv_ids": [],
+      "input_from": [
+        19,
+        9
+      ]
+    },
+    {
+      "layer_id": 21,
+      "type": "C2f",
+      "conv_ids": [
+        41,
+        42,
+        43,
+        44
+      ],
+      "input_from": 20,
+      "n": 1,
+      "shortcut": false
+    },
+    {
+      "layer_id": 22,
+      "type": "Detect",
+      "conv_ids": [
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63
+      ],
+      "input_from": [
+        15,
+        18,
+        21
+      ]
+    }
+  ]
 }
