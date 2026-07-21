@@ -171,3 +171,44 @@ std::unique_ptr<Tensor> concat(const std::vector<const Tensor*>& tensors) {
     
     return output;
 }
+std::unique_ptr<Tensor> maxpool2d(const Tensor& input, int kernel_size) {
+    // Input shape: (channels, height, width)
+    // Output shape: same as input (stride=1, padding = kernel_size/2)
+    int channels = input.shape[0];
+    int height = input.shape[1];
+    int width = input.shape[2];
+    int padding = kernel_size / 2;  // integer division; for kernel=5, padding=2
+    
+    auto output = std::make_unique<Tensor>(std::vector<int>{channels, height, width});
+    
+    for (int c = 0; c < channels; c++) {
+        for (int oh = 0; oh < height; oh++) {
+            for (int ow = 0; ow < width; ow++) {
+                // Find max in the kernel_size x kernel_size window centered at (oh, ow)
+                int8_t max_val = -128;  // INT8 minimum, so anything real beats this
+                
+                for (int kh = 0; kh < kernel_size; kh++) {
+                    for (int kw = 0; kw < kernel_size; kw++) {
+                        int ih = oh + kh - padding;
+                        int iw = ow + kw - padding;
+                        
+                        // Skip positions outside the input
+                        if (ih < 0 || ih >= height || iw < 0 || iw >= width) {
+                            continue;
+                        }
+                        
+                        int in_idx = c * (height * width) + ih * width + iw;
+                        if (input.data[in_idx] > max_val) {
+                            max_val = input.data[in_idx];
+                        }
+                    }
+                }
+                
+                int out_idx = c * (height * width) + oh * width + ow;
+                output->data[out_idx] = max_val;
+            }
+        }
+    }
+    
+    return output;
+}

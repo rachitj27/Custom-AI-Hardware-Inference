@@ -42,7 +42,37 @@ Model load_model_metadata(const std::string& json_path) {
         act.zero_point = (*it)["zero_point"];
         model.activation_scales[layer_idx] = act;
     }
-    
+    // Parse architecture
+    if (metadata.contains("architecture")) {
+        for (const auto& arch_json : metadata["architecture"]) {
+            ArchLayer arch;
+            arch.layer_id = arch_json["layer_id"];
+            arch.type = arch_json["type"];
+            arch.conv_ids = arch_json["conv_ids"].get<std::vector<int>>();
+            
+            // Handle input_from: could be int or array
+            const auto& input_from = arch_json["input_from"];
+            if (input_from.is_array()) {
+                arch.is_multi_input = true;
+                arch.input_from_multi = input_from.get<std::vector<int>>();
+                arch.input_from_single = -1;
+            } else if (input_from.is_string()) {
+                // "input" — the very first layer
+                arch.is_multi_input = false;
+                arch.input_from_single = -1;  // -1 signals raw input
+            } else {
+                arch.is_multi_input = false;
+                arch.input_from_single = input_from.get<int>();
+            }
+            
+            // Extra fields with defaults
+            arch.n_bottlenecks = arch_json.value("n", 0);
+            arch.shortcut = arch_json.value("shortcut", false);
+            arch.kernel_size = arch_json.value("k", 5);
+            
+            model.architecture.push_back(arch);
+        }
+    }
     return model;
 }
 
