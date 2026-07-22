@@ -53,5 +53,16 @@ std::unique_ptr<Tensor> sppf_block(
     const Layer& cv2, float out_scale, int out_zp,
     int kernel_size
 );
+std::unique_ptr<Tensor> conv_block(
+    const Tensor& input,
+    const Layer& conv,
+    int stride,
+    int padding,
+    float input_scale,
+    float output_scale,
+    int output_zp
+);
+
+std::vector<std::unique_ptr<Tensor>> run_forward(const Model& model, const Tensor& input);
 
 #endif

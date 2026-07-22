@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <cstring>
+#include <iostream>
 
 std::unique_ptr<Tensor> conv2d(
     const Tensor& input,
@@ -246,9 +247,11 @@ std::unique_ptr<Tensor> c2f_block(
     bool shortcut
 ) {
     float in_s = scales[0];
-    int in_z = zero_points[0];
     float out_s = scales[1];
     int out_z = zero_points[1];
+    
+    // conv[0] is cv1, conv[1] is cv2 (final output conv)
+    // convs[2..] are the bottleneck convs, 2 per bottleneck
     
     auto x = conv2d(input, *convs[0]->weights, 1, 0,
                     in_s, convs[0]->weight_scale, out_s, out_z);
@@ -272,8 +275,10 @@ std::unique_ptr<Tensor> c2f_block(
     
     const Tensor* current = &b;
     for (int i = 0; i < n_bottlenecks; i++) {
-        int c1_idx = 1 + i * 2;
-        int c2_idx = 2 + i * 2;
+        // Bottleneck convs start at index 2, two per bottleneck
+        int c1_idx = 2 + i * 2;
+        int c2_idx = 3 + i * 2;
+        
         auto next = bottleneck(*current,
                                *convs[c1_idx], out_s, out_z, out_s, out_z,
                                *convs[c2_idx], out_s, out_z,
@@ -285,9 +290,9 @@ std::unique_ptr<Tensor> c2f_block(
     
     auto concat_out = concat(concat_inputs);
     
-    int last_conv_idx = convs.size() - 1;
-    auto result = conv2d(*concat_out, *convs[last_conv_idx]->weights, 1, 0,
-                         out_s, convs[last_conv_idx]->weight_scale, out_s, out_z);
+    // Final conv is conv[1] (cv2)
+    auto result = conv2d(*concat_out, *convs[1]->weights, 1, 0,
+                         out_s, convs[1]->weight_scale, out_s, out_z);
     silu_inplace(*result, out_s, out_z, out_s, out_z);
     return result;
 }
@@ -313,4 +318,94 @@ std::unique_ptr<Tensor> sppf_block(
                          mid_scale, cv2.weight_scale, out_scale, out_zp);
     silu_inplace(*result, out_scale, out_zp, out_scale, out_zp);
     return result;
+}
+std::unique_ptr<Tensor> conv_block(
+    const Tensor& input,
+    const Layer& conv,
+    int stride,
+    int padding,
+    float input_scale,
+    float output_scale,
+    int output_zp
+) {
+    auto out = conv2d(input, *conv.weights, stride, padding,
+                      input_scale, conv.weight_scale, output_scale, output_zp);
+    silu_inplace(*out, output_scale, output_zp, output_scale, output_zp);
+    return out;
+}
+
+std::vector<std::unique_ptr<Tensor>> run_forward(const Model& model, const Tensor& input) {
+    std::vector<std::unique_ptr<Tensor>> outputs;
+    outputs.resize(model.architecture.size());
+    
+    float input_scale = 1.0f / 255.0f;
+    
+    for (size_t i = 0; i < model.architecture.size(); i++) {
+        const auto& arch = model.architecture[i];
+        
+        float out_scale = model.activation_scales.count(arch.layer_id)
+            ? model.activation_scales.at(arch.layer_id).scale : 1.0f;
+        int out_zp = model.activation_scales.count(arch.layer_id)
+            ? model.activation_scales.at(arch.layer_id).zero_point : 0;
+        
+        const Tensor* in_tensor = nullptr;
+        float in_scale = input_scale;
+        
+        if (!arch.is_multi_input) {
+            if (arch.input_from_single == -1) {
+                in_tensor = &input;
+                in_scale = input_scale;
+            } else {
+                in_tensor = outputs[arch.input_from_single].get();
+                in_scale = model.activation_scales.count(arch.input_from_single)
+                    ? model.activation_scales.at(arch.input_from_single).scale : 1.0f;
+            }
+        }
+        
+        std::unique_ptr<Tensor> result;
+        
+        if (arch.type == "Conv") {
+            int stride = (arch.layer_id == 0 || arch.layer_id == 1 ||
+                          arch.layer_id == 3 || arch.layer_id == 5 ||
+                          arch.layer_id == 7 || arch.layer_id == 16 ||
+                          arch.layer_id == 19) ? 2 : 1;
+            int padding = 1;
+            const Layer& conv = model.conv_layers[arch.conv_ids[0]];
+            result = conv_block(*in_tensor, conv, stride, padding,
+                                in_scale, out_scale, out_zp);
+        }
+        else if (arch.type == "C2f") {
+            std::vector<const Layer*> convs;
+            for (int cid : arch.conv_ids) convs.push_back(&model.conv_layers[cid]);
+            std::vector<float> scales = {in_scale, out_scale};
+            std::vector<int> zps = {0, out_zp};
+            result = c2f_block(*in_tensor, convs, scales, zps,
+                               arch.n_bottlenecks, arch.shortcut);
+        }
+        else if (arch.type == "SPPF") {
+            const Layer& cv1 = model.conv_layers[arch.conv_ids[0]];
+            const Layer& cv2 = model.conv_layers[arch.conv_ids[1]];
+            result = sppf_block(*in_tensor, cv1, in_scale, 0, out_scale, out_zp,
+                                cv2, out_scale, out_zp, arch.kernel_size);
+        }
+        else if (arch.type == "Upsample") {
+            result = upsample2x(*in_tensor);
+        }
+        else if (arch.type == "Concat") {
+            std::vector<const Tensor*> to_concat;
+            for (int layer_idx : arch.input_from_multi) {
+                to_concat.push_back(outputs[layer_idx].get());
+            }
+            result = concat(to_concat);
+        }
+        else if (arch.type == "Detect") {
+            result = std::make_unique<Tensor>(std::vector<int>{1, 1, 1});
+            result->data[0] = 0;
+        }
+        
+        std::cout << "  Layer " << arch.layer_id << " (" << arch.type << ") done" << std::endl;
+        outputs[i] = std::move(result);
+    }
+    
+    return outputs;
 }
