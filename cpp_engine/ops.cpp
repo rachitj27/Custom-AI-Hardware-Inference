@@ -398,9 +398,13 @@ std::vector<std::unique_ptr<Tensor>> run_forward(const Model& model, const Tenso
             }
             result = concat(to_concat);
         }
-        else if (arch.type == "Detect") {
-            result = std::make_unique<Tensor>(std::vector<int>{1, 1, 1});
-            result->data[0] = 0;
+       else if (arch.type == "Detect") {
+            // Return the deepest feature map (from layer 21) as final output
+            // In production, this would feed into box decoding + NMS
+            int last_source = arch.input_from_multi.back();
+            result = std::make_unique<Tensor>(outputs[last_source]->shape);
+            std::memcpy(result->data, outputs[last_source]->data,
+                        outputs[last_source]->num_elements);
         }
         
         std::cout << "  Layer " << arch.layer_id << " (" << arch.type << ") done" << std::endl;

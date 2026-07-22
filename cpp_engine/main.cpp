@@ -24,7 +24,13 @@ int main() {
         std::cout << outputs.back()->shape[j];
         if (j < outputs.back()->shape.size() - 1) std::cout << ", ";
     }
+    
     std::cout << ")" << std::endl;
+    std::cout << "First 8 output values: ";
+    for (int j = 0; j < 8; j++) {
+        std::cout << (int)outputs.back()->data[j] << " ";
+    }
+    std::cout << std::endl;
     
     return 0;
 }
