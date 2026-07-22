@@ -1,63 +1,22 @@
-# M1 FP32 Baseline
+## Custom C++ Engine Benchmark
 
-## Hardware
-- CPU: Intel Core Ultra 7 256V (Lunar Lake)
-- OS: Windows
-- Python: 3.10.11
-- PyTorch: 2.11.0 (CPU build)
-- Test set: 55 images, 57 instances (fire-8 test split)
+Hardware: Intel Core Ultra 7 256V (laptop CPU)
+Same test image, same 640x640 input, INT8 inference
 
-## Model
-- Architecture: YOLOv8n (3,006,038 parameters, 8.1 GFLOPs)
-- Trained: 50 epochs on T4 GPU via Google Colab
-- Dataset: fire-8 (2 classes: fire, smoke)
-
-## Accuracy
 | Metric | Value |
 |--------|-------|
-| mAP@0.5      | 0.9253 |
-| mAP@0.5:0.95 | 0.5469 |
-| Precision    | 0.9376 |
-| Recall       | 0.8466 |
+| Avg latency | 3145 ms |
+| Min latency | 3069 ms |
+| Max latency | 3270 ms |
 
-## Latency Comparison
+## Comparison to Production Runtimes
 
-| Runtime | Hardware | Precision | Mean (ms) | Median (ms) | P95 (ms) |
-|---------|----------|-----------|-----------|-------------|----------|
-| PyTorch (Ultralytics) | Intel Core Ultra 7 256V | FP32 | 45.77 | 42.75 | 60.75 |
-| ONNX Runtime | Intel Core Ultra 7 256V | FP32 | 40.10 | 38.98 | 51.90 |
-| OpenVINO | Intel Core Ultra 7 256V | FP32 | 30.57 | 29.93 | 35.04 |
-| TensorRT | NVIDIA T4 (Colab) | FP16 | 12.39 | 12.05 | 13.94 |
+| Runtime | Latency | Speedup vs custom engine |
+|---------|---------|-------------------------|
+| Custom C++ engine | 3145 ms | 1.0x (baseline) |
+| PyTorch | 46 ms | 68x faster |
+| ONNX Runtime | 40 ms | 79x faster |
+| OpenVINO | 31 ms | 101x faster |
+| TensorRT (T4 GPU) | 12 ms | 262x faster |
 
-
-
-## Observations
-- OpenVINO is the fastest FP32 runtime on this Intel CPU, with the lowest variance (P95 only 5ms above median).
-- ONNX Runtime provides modest improvement over PyTorch on Intel hardware because PyTorch already uses oneDNN under the hood for CPU inference.
-- The C++ inference engine will use ONNX Runtime as the primary comparison target.
-
-## Notes
-- All latency numbers measured with 5 warm-up runs followed by 55 timed runs on the test set.
-- PyTorch latency includes preprocessing and postprocessing (NMS). ONNX Runtime and OpenVINO numbers are inference only.
-- Note: TensorRT measured on Google Colab T4 in default FP16 mode, the standard
-production configuration for NVIDIA inference. CPU runtimes measured at FP32.
-
-# M2 Quantization Results
-
-## Test Set: fire-8, 49 images, 51 instances
-
-| Configuration | mAP@0.5 | mAP@0.5:0.95 |
-|--------------|---------|--------------|
-| FP32 baseline | 0.9253 | 0.5469 |
-| INT8 weights (symmetric per-tensor) | 0.8467 | 0.4640 |
-| INT8 weights + activations (asymmetric per-tensor) | 0.8445 | 0.4604 |
-
-## Precision loss breakdown
-- Weight quantization causes ~8.5% mAP@0.5 drop
-- Adding activation quantization causes only 0.2% additional drop
-- Total: 91% of FP32 mAP@0.5 preserved with fully from-scratch INT8 quantization
-
-## Notes
-- Per-tensor symmetric weights (could improve with per-channel)
-- Per-tensor asymmetric activations calibrated on 100 training images
-- Skipped output quantization on Detect, Concat, Upsample layers (non-standard tensor outputs)
+Production runtimes are significantly faster because they use hardware-specific optimizations that my hand-written naive C++ does not. Closing this gap would require implementing techniques like multi-threading and vectorization,

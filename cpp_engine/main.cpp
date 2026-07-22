@@ -1,5 +1,7 @@
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <vector>
 #include "model.h"
 #include "ops.h"
 
@@ -15,22 +17,37 @@ int main() {
     input.load_from_stream(input_file, 3 * 640 * 640);
     std::cout << "Loaded test_input.bin\n" << std::endl;
     
-    std::cout << "Running forward pass..." << std::endl;
-    auto outputs = run_forward(model, input);
+    // Warm-up run
+    std::cout << "Warming up..." << std::endl;
+    auto warm = run_forward(model, input);
     
-    std::cout << "\nForward pass complete" << std::endl;
-    std::cout << "Final layer shape: (";
-    for (size_t j = 0; j < outputs.back()->shape.size(); j++) {
-        std::cout << outputs.back()->shape[j];
-        if (j < outputs.back()->shape.size() - 1) std::cout << ", ";
+    // Timed runs
+    const int n_runs = 5;
+    std::vector<double> times;
+    std::cout << "\nRunning " << n_runs << " timed inferences..." << std::endl;
+    
+    for (int i = 0; i < n_runs; i++) {
+        auto start = std::chrono::high_resolution_clock::now();
+        auto outputs = run_forward(model, input);
+        auto end = std::chrono::high_resolution_clock::now();
+        double ms = std::chrono::duration<double, std::milli>(end - start).count();
+        times.push_back(ms);
+        std::cout << "  Run " << (i+1) << ": " << ms << " ms" << std::endl;
     }
     
-    std::cout << ")" << std::endl;
-    std::cout << "First 8 output values: ";
-    for (int j = 0; j < 8; j++) {
-        std::cout << (int)outputs.back()->data[j] << " ";
+    // Stats
+    double sum = 0, minv = times[0], maxv = times[0];
+    for (double t : times) {
+        sum += t;
+        if (t < minv) minv = t;
+        if (t > maxv) maxv = t;
     }
-    std::cout << std::endl;
+    double avg = sum / n_runs;
+    
+    std::cout << "\n=== Benchmark Results ===" << std::endl;
+    std::cout << "Avg: " << avg << " ms" << std::endl;
+    std::cout << "Min: " << minv << " ms" << std::endl;
+    std::cout << "Max: " << maxv << " ms" << std::endl;
     
     return 0;
 }
